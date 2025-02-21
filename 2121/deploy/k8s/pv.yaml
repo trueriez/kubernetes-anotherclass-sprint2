@@ -11,14 +11,21 @@ metadata:
     managed-by: kubectl
 spec:
   capacity:
-    storage: 2G
+    storage: 2Gi  # 표준화된 단위 사용
   volumeMode: Filesystem
+  storageClassName: local-storage 
   accessModes:
     - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain  # PVC 삭제 후에도 PV 유지
   local:
     path: "/mnt/data"
   nodeAffinity:
     required:
       nodeSelectorTerms:
         - matchExpressions:
-            - {key: kubernetes.io/hostname, operator: In, values: [uc-master]}
+            - key: kubernetes.io/hostname
+              operator: In
+              values:
+                - uc-master
+                - uc-node1
+                - uc-node2  # 모든 노드에서 사용할 수 있도록 추가
