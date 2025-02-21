@@ -11,14 +11,9 @@ metadata:
     version: 1.0.0
     managed-by: kubectl
 spec:
+  storageClassName: local-storage  # 스토리지 클래스 명시 (필수)
   resources:
     requests:
-      storage: 2G
+      storage: 2Gi  # 올바른 단위 사용
   accessModes:
     - ReadWriteOnce
-  selector:
-    matchLabels:
-      part-of: k8s-anotherclass
-      component: backend-server
-      name: api-tester
-      instance: api-tester-2121-files
