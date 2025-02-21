@@ -11,9 +11,14 @@ metadata:
     version: 1.0.0
     managed-by: kubectl
 spec:
-  storageClassName: local-storage
   resources:
     requests:
-      storage: 2Gi
+      storage: 2G
   accessModes:
     - ReadWriteOnce
+  selector:
+    matchLabels:
+      part-of: k8s-anotherclass
+      component: backend-server
+      name: api-tester
+      instance: api-tester-2121-files
