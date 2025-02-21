@@ -11,9 +11,9 @@ metadata:
     version: 1.0.0
     managed-by: kubectl
 spec:
-  storageClassName: local-storage  # 스토리지 클래스 명시 (필수)
+  storageClassName: local-storage
   resources:
     requests:
-      storage: 2Gi  # 올바른 단위 사용
+      storage: 2Gi
   accessModes:
     - ReadWriteOnce
