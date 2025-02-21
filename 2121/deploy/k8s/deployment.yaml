@@ -30,14 +30,14 @@ spec:
         version: 1.0.0
     spec:
       nodeSelector: {}
+      imagePullSecrets:
+        - name: ghcr-secret  # <-- 위치 수정
       containers:
         - name: api-tester-2121
-          image: trueriez/api-tester:v1.0.0
+          image: ghcr.io/trueriez/api-tester:v1.0.0  # <-- GHCR 사용 시 이미지 수정
           imagePullPolicy: Always
-      imagePullSecrets:
-        - name: ghcr-secret
           ports:
-            - containerPort: 8080
+            - containerPort: 8080  # <-- ports 위치 수정
               name: http
           envFrom:
             - configMapRef:
