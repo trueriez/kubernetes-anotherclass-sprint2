@@ -1,110 +1,94 @@
 pipeline {
     agent any
 
-    // 전역 도구 설정
     tools {
-        gradle 'gradle-8.10'
+        gradle 'gradle-7.6.1'
         jdk 'jdk-17'
     }
 
-    // 환경 변수 정의
     environment {
-        GHCR_USERNAME = 'trueriez'
-        GHCR_REPO     = 'ghcr.io/trueriez/api-tester'
-        GITHUB_URL    = 'https://github.com/trueriez/kubernetes-anotherclass-sprint2.git'
-        CLASS_NUM     = '2212'
-        GIT_CRED_ID   = 'github-credentials'       // GitHub 인증 정보 ID
-        GHCR_CRED_ID  = 'github-container-credentials' // GHCR 인증 정보 ID
+        GHCR_USERNAME = 'k8s-1pro'
+        GHCR_REPO = 'ghcr.io/k8s-1pro/api-tester'
+        GITHUB_URL = 'https://github.com/k8s-1pro/kubernetes-anotherclass-sprint2.git'
+
+        // 실습 넘버링
+        CLASS_NUM = '2212'
     }
-
+    
     stages {
-        // 소스 빌드 단계
-        stage('Source Build') {
+        stage('소스파일 체크아웃') {
             steps {
-                // SCM 체크아웃 withCredentials로 인증 처리
-                gitCheckout(
-                    repoUrl: "https://github.com/trueriez/kubernetes-anotherclass-api-tester.git",
-                    branch: 'main',
-                    credentialsId: GIT_CRED_ID
-                )
-
-                // Gradle 빌드
-                sh '''
-                    chmod +x ./gradlew
-                    ./gradlew clean build
-                '''
-            }
-        }
-
-        // 컨테이너 빌드 및 GHCR 푸시 단계
-        stage('Container Build & Push to GHCR') {
-            steps {
-                // sprint2 리포지토리에서 특정 경로만 체크아웃
-                gitCheckout(
-                    repoUrl: GITHUB_URL,
-                    branch: 'main',
-                    credentialsId: GIT_CRED_ID,
-                    sparseCheckout: "/${CLASS_NUM}"
-                )
-
-                // Docker 로그인 및 빌드, 푸시
-                withCredentials([usernamePassword(credentialsId: GHCR_CRED_ID, 
-                                                 usernameVariable: 'GIT_USER', 
-                                                 passwordVariable: 'GIT_PAT')]) {
-                    // 1. GHCR 로그인
-				            sh 'echo "$GIT_PAT" | docker login ghcr.io -u "$GIT_USER" --password-stdin'
-				
-				            // 2. Docker 빌드 디렉터리 생성
-				            sh 'mkdir -p ./${CLASS_NUM}/build/docker'
-				
-				            // 3. JAR 파일 복사
-				            sh 'cp ./build/libs/app-0.0.1-SNAPSHOT.jar ./${CLASS_NUM}/build/docker/app-0.0.1-SNAPSHOT.jar'
-				
-				            // 4. Docker 이미지 빌드
-				            sh 'docker build -t ${GHCR_REPO}:v1.0.0 ./${CLASS_NUM}/build/docker'
-				
-				            // 5. Docker 이미지 푸시
-				            sh 'docker push ${GHCR_REPO}:v1.0.0'
-                }
-            }
-        }
-
-        // Kubernetes 배포 단계
-        stage('K8S Deploy') {
-            steps {
-                // Kubernetes 매니페스트 적용
                 script {
-                    def manifests = [
-                        'namespace.yaml',
-                        'configmap.yaml',
-                        'secret.yaml',
-                        'service.yaml',
-                        'deployment.yaml'
-                    ]
-                    manifests.each { manifest ->
-                        sh "kubectl apply -f ./${CLASS_NUM}/deploy/k8s/${manifest}"
+                    withCredentials([usernamePassword(credentialsId: 'github-credentials', usernameVariable: 'GIT_USER', passwordVariable: 'GIT_PASS')]) {
+                        checkout scmGit(
+                            branches: [[name: '*/main']],  
+                            userRemoteConfigs: [[url: "https://${GIT_USER}:${GIT_PASS}@github.com/k8s-1pro/kubernetes-anotherclass-api-tester.git"]]
+                        )
                     }
                 }
             }
         }
-    }
 
-    // 실패 시 정리 (선택적)
-    post {
-        failure {
-            echo 'Build failed! Check logs for details.'
+        stage('소스 빌드') {
+            steps {
+                sh "chmod +x ./gradlew"
+                sh "./gradlew clean build"
+            }
         }
-        always {
-            cleanWs() // 워크스페이스 정리
+
+        stage('릴리즈파일 체크아웃') {
+            steps {
+                script {
+                    withCredentials([usernamePassword(credentialsId: 'github-credentials', usernameVariable: 'GIT_USER', passwordVariable: 'GIT_PASS')]) {
+                        checkout scmGit(
+                            branches: [[name: '*/main']],
+                            extensions: [[$class: 'SparseCheckoutPaths',
+                            sparseCheckoutPaths: [[path: "/${CLASS_NUM}"]]]],
+                            userRemoteConfigs: [[url: "https://${GIT_USER}:${GIT_PASS}@github.com/k8s-1pro/kubernetes-anotherclass-sprint2.git"]]
+                        )
+                    }
+                }
+            }
+        }
+
+        stage('컨테이너 빌드 & GHCR 업로드') {
+            steps {
+                script {
+                    withCredentials([usernamePassword(credentialsId: 'github-container-credentials', usernameVariable: 'GIT_USER', passwordVariable: 'GIT_PAT')]) {
+                        sh '''
+                            echo "📌 현재 작업 디렉토리 (pwd):"
+                            pwd  # 현재 위치 출력
+
+                            echo "$GIT_PAT" | docker login ghcr.io -u "$GIT_USER" --password-stdin
+
+                            mkdir -p ./${CLASS_NUM}/build/docker
+                            cp ./build/libs/app-0.0.1-SNAPSHOT.jar ./${CLASS_NUM}/build/docker/app-0.0.1-SNAPSHOT.jar
+                            
+                            docker build -t ${GHCR_REPO}:v1.0.0 ./${CLASS_NUM}/build/docker
+                            docker push ${GHCR_REPO}:v1.0.0
+                        '''
+                    }
+                }
+            }
+        }
+
+        stage('쿠버네티스 배포') {
+            steps {
+                sh "kubectl apply -f ./${CLASS_NUM}/deploy/k8s/namespace.yaml"
+                sh "kubectl apply -f ./${CLASS_NUM}/deploy/k8s/configmap.yaml"
+                sh "kubectl apply -f ./${CLASS_NUM}/deploy/k8s/secret.yaml"
+                sh "kubectl apply -f ./${CLASS_NUM}/deploy/k8s/service.yaml"
+                sh "kubectl apply -f ./${CLASS_NUM}/deploy/k8s/deployment.yaml"
+            }
+        }
+
+        stage('배포 확인') {
+            steps {
+                sh "sleep 10"
+                sh "kubectl get pods -n ${CLASS_NUM}"
+                sh "kubectl get svc -n ${CLASS_NUM}"
+                sh "kubectl get deployments -n ${CLASS_NUM}"
+            }
         }
     }
-}
-
-// Git 체크아웃 커스텀 함수
-def gitCheckout(Map args) {
-    checkout scmGit(
-        branches: [[name: "*/${args.branch}"]],
-        extensions: args.sparseCheckout ? [[$class: 'SparseCheckoutPaths', sparseCheckoutPaths: [[path: args.sparseCheckout]]]] : [],
-        userRemoteConfigs: [[url: args.repoUrl, credentialsId: args.credentialsId]]
-    )
 }
