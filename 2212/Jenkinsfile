@@ -1,91 +1,110 @@
 pipeline {
     agent any
 
+    // 전역 도구 설정
     tools {
-        gradle 'gradle-7.6.1'
+        gradle 'gradle-8.10'
         jdk 'jdk-17'
     }
 
+    // 환경 변수 정의
     environment {
-        // 본인의 username으로 하실 분은 수정해주세요.
-        DOCKERHUB_USERNAME = '1pro'
-        GITHUB_URL = 'https://github.com/k8s-1pro/kubernetes-anotherclass-sprint2.git'
-
-        // 실습 넘버링
-        CLASS_NUM = '2212'
+        GHCR_USERNAME = 'trueriez'
+        GHCR_REPO     = 'ghcr.io/trueriez/api-tester'
+        GITHUB_URL    = 'https://github.com/trueriez/kubernetes-anotherclass-sprint2.git'
+        CLASS_NUM     = '2212'
+        GIT_CRED_ID   = 'github-credentials'       // GitHub 인증 정보 ID
+        GHCR_CRED_ID  = 'github-container-credentials' // GHCR 인증 정보 ID
     }
-    
+
     stages {
-        stage('소스파일 체크아웃') {
+        // 소스 빌드 단계
+        stage('Source Build') {
             steps {
-                // 소스코드를 가져올 Github 주소
-                git branch: 'main', url: 'https://github.com/k8s-1pro/kubernetes-anotherclass-api-tester.git'
+                // SCM 체크아웃 withCredentials로 인증 처리
+                gitCheckout(
+                    repoUrl: "https://github.com/trueriez/kubernetes-anotherclass-api-tester.git",
+                    branch: 'main',
+                    credentialsId: GIT_CRED_ID
+                )
+
+                // Gradle 빌드
+                sh '''
+                    chmod +x ./gradlew
+                    ./gradlew clean build
+                '''
             }
         }
 
-        stage('소스 빌드') {
+        // 컨테이너 빌드 및 GHCR 푸시 단계
+        stage('Container Build & Push to GHCR') {
             steps {
-                // 755권한 필요 (윈도우에서 Git으로 소스 업로드시 권한은 644)
-                sh "chmod +x ./gradlew"
-                sh "gradle clean build"
-            }
-        }
+                // sprint2 리포지토리에서 특정 경로만 체크아웃
+                gitCheckout(
+                    repoUrl: GITHUB_URL,
+                    branch: 'main',
+                    credentialsId: GIT_CRED_ID,
+                    sparseCheckout: "/${CLASS_NUM}"
+                )
 
-        stage('릴리즈파일 체크아웃') {
-            steps {
-                checkout scmGit(branches: [[name: '*/main']],
-                    extensions: [[$class: 'SparseCheckoutPaths',
-                    sparseCheckoutPaths: [[path: "/${CLASS_NUM}"]]]],
-					userRemoteConfigs: [[url: "${GITHUB_URL}"]])
-            }
-        }
-
-        stage('컨테이너 빌드') {
-            steps {
-                // jar 파일 복사
-                sh "cp ./build/libs/app-0.0.1-SNAPSHOT.jar ./${CLASS_NUM}/build/docker/app-0.0.1-SNAPSHOT.jar"
-
-                // 도커 빌드
-                sh "docker build -t ${DOCKERHUB_USERNAME}/api-tester:v1.0.0 ./${CLASS_NUM}/build/docker"
-            }
-        }
-
-        stage('컨테이너 업로드') {
-            steps {
-                // DockerHub로 이미지 업로드
-                script{
-                    if (DOCKERHUB_USERNAME == "1pro") {
-                        echo "docker push ${DOCKERHUB_USERNAME}/api-tester:v1.0.0"
-                    } else {
-                        sh "docker push ${DOCKERHUB_USERNAME}/api-tester:v1.0.0"
-                    }
+                // Docker 로그인 및 빌드, 푸시
+                withCredentials([usernamePassword(credentialsId: GHCR_CRED_ID, 
+                                                 usernameVariable: 'GIT_USER', 
+                                                 passwordVariable: 'GIT_PAT')]) {
+                    // 1. GHCR 로그인
+				            sh 'echo "$GIT_PAT" | docker login ghcr.io -u "$GIT_USER" --password-stdin'
+				
+				            // 2. Docker 빌드 디렉터리 생성
+				            sh 'mkdir -p ./${CLASS_NUM}/build/docker'
+				
+				            // 3. JAR 파일 복사
+				            sh 'cp ./build/libs/app-0.0.1-SNAPSHOT.jar ./${CLASS_NUM}/build/docker/app-0.0.1-SNAPSHOT.jar'
+				
+				            // 4. Docker 이미지 빌드
+				            sh 'docker build -t ${GHCR_REPO}:v1.0.0 ./${CLASS_NUM}/build/docker'
+				
+				            // 5. Docker 이미지 푸시
+				            sh 'docker push ${GHCR_REPO}:v1.0.0'
                 }
             }
         }
 
-        stage('쿠버네티스 배포') {
+        // Kubernetes 배포 단계
+        stage('K8S Deploy') {
             steps {
-                // K8S 배포
-                sh "kubectl apply -f ./${CLASS_NUM}/deploy/k8s/namespace.yaml"
-                sh "kubectl apply -f ./${CLASS_NUM}/deploy/k8s/configmap.yaml"
-                sh "kubectl apply -f ./${CLASS_NUM}/deploy/k8s/secret.yaml"
-                sh "kubectl apply -f ./${CLASS_NUM}/deploy/k8s/service.yaml"
-                sh "kubectl apply -f ./${CLASS_NUM}/deploy/k8s/deployment.yaml"
-            }
-        }
-
-        stage('배포 확인') {
-            steps {
-                // 10초 대기
-                sh "sleep 10"
-
-                // K8S 배포
-                sh "kubectl get -f ./${CLASS_NUM}/deploy/k8s/namespace.yaml"
-                sh "kubectl get -f ./${CLASS_NUM}/deploy/k8s/configmap.yaml"
-                sh "kubectl get -f ./${CLASS_NUM}/deploy/k8s/secret.yaml"
-                sh "kubectl get -f ./${CLASS_NUM}/deploy/k8s/service.yaml"
-                sh "kubectl get -f ./${CLASS_NUM}/deploy/k8s/deployment.yaml"
+                // Kubernetes 매니페스트 적용
+                script {
+                    def manifests = [
+                        'namespace.yaml',
+                        'configmap.yaml',
+                        'secret.yaml',
+                        'service.yaml',
+                        'deployment.yaml'
+                    ]
+                    manifests.each { manifest ->
+                        sh "kubectl apply -f ./${CLASS_NUM}/deploy/k8s/${manifest}"
+                    }
+                }
             }
         }
     }
+
+    // 실패 시 정리 (선택적)
+    post {
+        failure {
+            echo 'Build failed! Check logs for details.'
+        }
+        always {
+            cleanWs() // 워크스페이스 정리
+        }
+    }
+}
+
+// Git 체크아웃 커스텀 함수
+def gitCheckout(Map args) {
+    checkout scmGit(
+        branches: [[name: "*/${args.branch}"]],
+        extensions: args.sparseCheckout ? [[$class: 'SparseCheckoutPaths', sparseCheckoutPaths: [[path: args.sparseCheckout]]]] : [],
+        userRemoteConfigs: [[url: args.repoUrl, credentialsId: args.credentialsId]]
+    )
 }
