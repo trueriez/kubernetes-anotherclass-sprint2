@@ -74,7 +74,7 @@ pipeline {
                 script {
                     withCredentials([usernamePassword(credentialsId: 'github-container-credentials', usernameVariable: 'GIT_USER', passwordVariable: 'GIT_PAT')]) {
               	        // 도커 빌드
-			            echo "docker build -t ${GHCR_REPO}/api-tester:v1.0.0 ./${CLASS_NUM}/build/docker"
+			            echo "docker build -t ${GHCR_REPO}/api-tester:${TAG} ./${CLASS_NUM}/build/docker"
                     }
                 }
             }
@@ -86,7 +86,7 @@ pipeline {
                 script {
                     withCredentials([usernamePassword(credentialsId: 'github-container-credentials', usernameVariable: 'GIT_USER', passwordVariable: 'GIT_PAT')]) {
               	        // 도커 빌드
-			            echo "docker push ${GHCR_REPO}:v1.0.0"
+			            echo "docker push ${GHCR_REPO}:${TAG}"
                     }
                 }
             }
