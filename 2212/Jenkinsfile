@@ -7,8 +7,8 @@ pipeline {
     }
 
     environment {
-        GHCR_USERNAME = 'k8s-1pro'
-        GHCR_REPO = 'ghcr.io/k8s-1pro/api-tester'
+        GHCR_USERNAME = 'trueriez'
+        GHCR_REPO = 'ghcr.io/trueriez/api-tester'
         GITHUB_URL = 'https://github.com/k8s-1pro/kubernetes-anotherclass-sprint2.git'
 
         // 실습 넘버링
@@ -22,7 +22,7 @@ pipeline {
                     withCredentials([usernamePassword(credentialsId: 'github-credentials', usernameVariable: 'GIT_USER', passwordVariable: 'GIT_PASS')]) {
                         checkout scmGit(
                             branches: [[name: '*/main']],  
-                            userRemoteConfigs: [[url: "https://${GIT_USER}:${GIT_PASS}@github.com/k8s-1pro/kubernetes-anotherclass-api-tester.git"]]
+                            userRemoteConfigs: [[url: "https://${GIT_USER}:${GIT_PASS}@github.com/trueriez/kubernetes-anotherclass-api-tester.git"]]
                         )
                     }
                 }
@@ -44,7 +44,7 @@ pipeline {
                             branches: [[name: '*/main']],
                             extensions: [[$class: 'SparseCheckoutPaths',
                             sparseCheckoutPaths: [[path: "/${CLASS_NUM}"]]]],
-                            userRemoteConfigs: [[url: "https://${GIT_USER}:${GIT_PASS}@github.com/k8s-1pro/kubernetes-anotherclass-sprint2.git"]]
+                            userRemoteConfigs: [[url: "https://${GIT_USER}:${GIT_PASS}@github.com/trueriez/kubernetes-anotherclass-sprint2.git"]]
                         )
                     }
                 }
