@@ -52,7 +52,7 @@ pipeline {
                             branches: [[name: '*/main']],
                              extensions: [[$class: 'SparseCheckoutPaths',
                                       sparseCheckoutPaths: [[path: "/${CLASS_NUM}"]]]],
-                            userRemoteConfigs: [[url: "https://${GIT_USER}:${GIT_PASS}@github.com/trueriez/kubernetes-anotherclass-api-tester.git"]]
+                            userRemoteConfigs: [[url: "https://${GIT_USER}:${GIT_PASS}@${GITHUB_URL}"]]
                         )
                     }
                 }
