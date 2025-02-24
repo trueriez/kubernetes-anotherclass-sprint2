@@ -68,7 +68,7 @@ pipeline {
                      withCredentials([usernamePassword(credentialsId: 'github-container-credentials', usernameVariable: 'GIT_USER', passwordVariable: 'GIT_PAT')]) {
                         sh "echo " + '${PASSWORD}' + " | docker login ghcr.io -u " + '${USERNAME}' + " --password-stdin"
                      }
-                    mkdir -p ./${CLASS_NUM}/build/docker
+                    sh "mkdir -p ./${CLASS_NUM}/build/docker"
                     // 도커 빌드 및 업로드
                     sh "docker build ./${CLASS_NUM}/build/docker -t ${DOCKERHUB_USERNAME}/api-tester:${TAG}"
                     sh "docker push ${DOCKERHUB_USERNAME}/api-tester:${TAG}"
