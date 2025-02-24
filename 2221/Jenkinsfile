@@ -7,9 +7,9 @@ pipeline {
     }
 
     environment {
-        GHCR_USERNAME = 'trueriez'
-        GHCR_REPO = 'ghcr.io/trueriez/api-tester'
-        GITHUB_URL = 'https://github.com/trueriez/kubernetes-anotherclass-sprint2.git'
+        // 본인의 username으로 하실 분은 수정해주세요.
+        DOCKERHUB_USERNAME = '1pro'
+        GITHUB_URL = 'https://github.com/k8s-1pro/kubernetes-anotherclass-sprint2.git'
 
         // 실습 넘버링
         CLASS_NUM = '2221'
@@ -18,79 +18,56 @@ pipeline {
     stages {
         stage('소스파일 체크아웃') {
             steps {
-                script {
-                    withCredentials([usernamePassword(credentialsId: 'github-credentials', usernameVariable: 'GIT_USER', passwordVariable: 'GIT_PASS')]) {
-                        checkout scmGit(
-                            branches: [[name: '*/main']],
-                            userRemoteConfigs: [[url: "https://${GIT_USER}:${GIT_PASS}@github.com/trueriez/kubernetes-anotherclass-api-tester.git"]]
-                        )
-                    }
-                }
+                // 소스코드를 가져올 Github 주소
+                git branch: 'main', url: 'https://github.com/k8s-1pro/kubernetes-anotherclass-api-tester.git'
             }
         }
 
         stage('소스 빌드') {
             steps {
-                sh '''
-                    chmod +x ./gradlew
-                    ./gradlew clean build
+                // 755권한 필요 (윈도우에서 Git으로 소스 업로드시 권한은 644)
+                echo "chmod +x ./gradlew"
+                echo "gradle clean build"
+            }
+        }
 
-      		    mkdir -p ./${CLASS_NUM}/build/docker
-	    	    #cp ./Dockerfile ./${CLASS_NUM}/build/docker/Dockerfile || cp ./docker/Dockerfile ./${CLASS_NUM}/build/docker/Dockerfile
-                    #cp ./build/libs/app-0.0.1-SNAPSHOT.jar ./${CLASS_NUM}/build/docker/app-0.0.1-SNAPSHOT.jar
-		    
-                '''
-            }
-        }
-        stage('컨테이너 빌드 & GHCR 업로드') {
-            steps {
-                script {
-                    withCredentials([usernamePassword(credentialsId: 'github-container-credentials', usernameVariable: 'GIT_USER', passwordVariable: 'GIT_PAT')]) {
-                        sh '''
-                            echo "$GIT_PAT" | docker login ghcr.io -u "$GIT_USER" --password-stdin
-			    echo "📌 현재 작업 디렉토리:"
-                            pwd  # 현재 위치 확인
-                            docker build -t ${GHCR_REPO}:v1.0.0 ./${CLASS_NUM}/build/docker
-                            docker push ${GHCR_REPO}:v1.0.0
-                        '''
-                    }
-                }
-            }
-        }
-	    
         stage('릴리즈파일 체크아웃') {
             steps {
-                script {
-                    withCredentials([usernamePassword(credentialsId: 'github-credentials', usernameVariable: 'GIT_USER', passwordVariable: 'GIT_PASS')]) {
-                        checkout scmGit(
-                            branches: [[name: '*/main']],
-                            extensions: [[$class: 'SparseCheckoutPaths',
-                            sparseCheckoutPaths: [[path: "/${CLASS_NUM}"]]]],
-                            userRemoteConfigs: [[url: "https://${GIT_USER}:${GIT_PASS}@github.com/trueriez/kubernetes-anotherclass-sprint2.git"]]
-                        )
-                    }
-                }
+                checkout scmGit(branches: [[name: '*/main']],
+                    extensions: [[$class: 'SparseCheckoutPaths',
+                    sparseCheckoutPaths: [[path: "/${CLASS_NUM}"]]]],
+					userRemoteConfigs: [[url: "${GITHUB_URL}"]])
             }
         }
 
+        stage('컨테이너 빌드') {
+            steps {
+                // jar 파일 복사
+                echo "cp ./build/libs/app-0.0.1-SNAPSHOT.jar ./${CLASS_NUM}/build/docker/app-0.0.1-SNAPSHOT.jar"
 
+                // 도커 빌드
+                echo "docker build -t ${DOCKERHUB_USERNAME}/api-tester:v1.0.0 ./${CLASS_NUM}/build/docker"
+            }
+        }
+
+        stage('컨테이너 업로드') {
+            steps {
+                // DockerHub로 이미지 업로드
+                echo "docker push ${DOCKERHUB_USERNAME}/api-tester:v1.0.0"
+            }
+        }
 
         stage('헬름 템플릿 확인') {
             steps {
-                sh '''
-                    helm template api-tester-${CLASS_NUM} ./${CLASS_NUM}/deploy/helm/4.addition/api-tester \
-                        -n anotherclass-222 --create-namespace
-                '''
+                // K8S 배포
+                sh "helm template api-tester-${CLASS_NUM} ./${CLASS_NUM}/deploy/helm/4.addition/api-tester -n anotherclass-222 --create-namespace"
             }
         }
 
         stage('헬름 배포') {
             steps {
                 input message: '배포 시작', ok: "Yes"
-                sh '''
-                    helm upgrade api-tester-${CLASS_NUM} ./${CLASS_NUM}/deploy/helm/4.addition/api-tester \
-                        -n anotherclass-222 --create-namespace --install --atomic
-                '''
+                sh "helm upgrade api-tester-${CLASS_NUM} ./${CLASS_NUM}/deploy/helm/4.addition/api-tester -n anotherclass-222 --create-namespace --install"
             }
         }
     }
