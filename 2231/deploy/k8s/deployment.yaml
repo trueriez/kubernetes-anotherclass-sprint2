@@ -30,7 +30,7 @@ spec:
     spec:
       nodeSelector: {}
       imagePullSecrets:
-        - name: dockerhub-secret
+        - name: ghcr-secret
       containers:
         - name: api-tester-2231
           image: trueriez/api-tester:1.0.0
