@@ -49,7 +49,7 @@ pipeline {
                         sh '''
                             echo "$GIT_PAT" | docker login ghcr.io -u "$GIT_USER" --password-stdin
 			    echo "📌 현재 작업 디렉토리:"
-                    		pwd  # 현재 위치 확인
+                            pwd  # 현재 위치 확인
                             docker build -t ${GHCR_REPO}:v1.0.0 ./${CLASS_NUM}/build/docker
                             docker push ${GHCR_REPO}:v1.0.0
                         '''
