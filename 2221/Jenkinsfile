@@ -59,7 +59,7 @@ pipeline {
                     withCredentials([usernamePassword(credentialsId: 'github-container-credentials', usernameVariable: 'GIT_USER', passwordVariable: 'GIT_PAT')]) {
                         sh '''
                             echo "$GIT_PAT" | docker login ghcr.io -u "$GIT_USER" --password-stdin
-
+							mkdir -p ./${CLASS_NUM}/build/docker
                             cp ./build/libs/app-0.0.1-SNAPSHOT.jar ./${CLASS_NUM}/build/docker/app-0.0.1-SNAPSHOT.jar
                             
                             docker build -t ${GHCR_REPO}:v1.0.0 ./${CLASS_NUM}/build/docker
