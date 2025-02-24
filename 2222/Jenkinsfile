@@ -40,6 +40,7 @@ pipeline {
                 // 755권한 필요 (윈도우에서 Git으로 소스 업로드시 권한은 644)
                 echo "chmod +x ./gradlew"
                 echo "gradle clean build"
+		    echo "mkdir -p ./${CLASS_NUM}/build/docker"
             }
         }
 
@@ -66,6 +67,7 @@ pipeline {
                 script {
                     withCredentials([usernamePassword(credentialsId: 'github-container-credentials', usernameVariable: 'GIT_USER', passwordVariable: 'GIT_PAT')]) {
               	        // 도커 빌드
+			    
 			            echo "docker build -t ${GHCR_REPO}/api-tester:v1.0.0 ./${CLASS_NUM}/build/docker"
                     }
                 }
