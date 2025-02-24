@@ -8,91 +8,96 @@ pipeline {
 
     environment {
         GHCR_USERNAME = 'trueriez'
-        GHCR_REPO = 'ghcr.io/trueriez/api-tester'
-        GITHUB_URL = 'https://github.com/trueriez/kubernetes-anotherclass-sprint2.git'
-
-        // 실습 넘버링
-        CLASS_NUM = '2221'
+        GHCR_REPO     = 'ghcr.io/trueriez/api-tester'
+        GITHUB_URL    = 'https://github.com/trueriez/kubernetes-anotherclass-sprint2.git'
+        CLASS_NUM     = '2221'
+        APP_VERSION   = '0.0.1-SNAPSHOT' // JAR 버전 변수화
+        IMAGE_TAG     = 'v1.0.0'         // Docker 태그 변수화
+        NAMESPACE     = 'anotherclass-222'
+        GIT_CRED_ID   = 'github-credentials'
+        GHCR_CRED_ID  = 'github-container-credentials'
     }
 
     stages {
         stage('소스파일 체크아웃') {
             steps {
-                script {
-                    withCredentials([usernamePassword(credentialsId: 'github-credentials', usernameVariable: 'GIT_USER', passwordVariable: 'GIT_PASS')]) {
-                        checkout scmGit(
-                            branches: [[name: '*/main']],
-                            userRemoteConfigs: [[url: "https://${GIT_USER}:${GIT_PASS}@github.com/trueriez/kubernetes-anotherclass-api-tester.git"]]
-                        )
-                    }
-                }
+                gitCheckout(
+                    repoUrl: "https://github.com/trueriez/kubernetes-anotherclass-api-tester.git",
+                    branch: 'main',
+                    credentialsId: GIT_CRED_ID
+                )
             }
         }
 
         stage('소스 빌드') {
             steps {
-                sh '''
-                    chmod +x ./gradlew
-                    ./gradlew clean build
-                '''
+                sh 'chmod +x ./gradlew'
+                sh './gradlew clean build'
             }
         }
 
         stage('릴리즈파일 체크아웃') {
             steps {
-                script {
-                    withCredentials([usernamePassword(credentialsId: 'github-credentials', usernameVariable: 'GIT_USER', passwordVariable: 'GIT_PASS')]) {
-                        checkout scmGit(
-                            branches: [[name: '*/main']],
-                            extensions: [[$class: 'SparseCheckoutPaths',
-                            sparseCheckoutPaths: [[path: "/${CLASS_NUM}"]]]],
-                            userRemoteConfigs: [[url: "https://${GIT_USER}:${GIT_PASS}@github.com/trueriez/kubernetes-anotherclass-sprint2.git"]]
-                        )
-                    }
-                }
+                gitCheckout(
+                    repoUrl: GITHUB_URL,
+                    branch: 'main',
+                    credentialsId: GIT_CRED_ID,
+                    sparseCheckout: "/${CLASS_NUM}"
+                )
             }
         }
 
         stage('컨테이너 빌드 & GHCR 업로드') {
             steps {
-                script {
-                    withCredentials([usernamePassword(credentialsId: 'github-container-credentials', usernameVariable: 'GIT_USER', passwordVariable: 'GIT_PAT')]) {
-                        sh '''
-                            echo "$GIT_PAT" | docker login ghcr.io -u "$GIT_USER" --password-stdin
-
-                            mkdir -p ./${CLASS_NUM}/build/docker
-                            if [ ! -f ./${CLASS_NUM}/build/docker/Dockerfile ]; then
-				                 echo "🚨 Dockerfile이 없습니다. 추가 복사 수행..."
-				                 cp ./docker/Dockerfile ./${CLASS_NUM}/build/docker/Dockerfile
-				            fi
-                        
-                            cp ./build/libs/app-0.0.1-SNAPSHOT.jar ./${CLASS_NUM}/build/docker/app-0.0.1-SNAPSHOT.jar
-                            
-                            docker build -t ${GHCR_REPO}:v1.0.0 ./${CLASS_NUM}/build/docker
-                            docker push ${GHCR_REPO}:v1.0.0
-                        '''
-                    }
+                withCredentials([usernamePassword(credentialsId: GHCR_CRED_ID, 
+                                                 usernameVariable: 'GIT_USER', 
+                                                 passwordVariable: 'GIT_PAT')]) {
+                    sh 'echo "$GIT_PAT" | docker login ghcr.io -u "$GIT_USER" --password-stdin'
+                    sh "cp ./build/libs/app-${APP_VERSION}.jar ./${CLASS_NUM}/build/docker/app-${APP_VERSION}.jar"
+                    sh "docker build -t ${GHCR_REPO}:${IMAGE_TAG} ./${CLASS_NUM}/build/docker"
+                    sh "docker push ${GHCR_REPO}:${IMAGE_TAG}"
                 }
             }
         }
 
         stage('헬름 템플릿 확인') {
             steps {
-                sh '''
+                sh """
                     helm template api-tester-${CLASS_NUM} ./${CLASS_NUM}/deploy/helm/4.addition/api-tester \
-                        -n anotherclass-222 --create-namespace
-                '''
+                        -n ${NAMESPACE} --create-namespace
+                """
             }
         }
 
         stage('헬름 배포') {
             steps {
-                input message: '배포 시작', ok: "Yes"
-                sh '''
+                input message: '배포를 시작하시겠습니까?', ok: 'Yes'
+                sh """
                     helm upgrade api-tester-${CLASS_NUM} ./${CLASS_NUM}/deploy/helm/4.addition/api-tester \
-                        -n anotherclass-222 --create-namespace --install --atomic
-                '''
+                        -n ${NAMESPACE} --create-namespace --install --atomic --timeout 5m
+                """
             }
         }
     }
+
+    post {
+        success {
+            echo "빌드 및 배포가 성공적으로 완료되었습니다."
+        }
+        failure {
+            echo "빌드 또는 배포에 실패했습니다. 로그를 확인하세요."
+        }
+        always {
+            cleanWs() // 워크스페이스 정리
+        }
+    }
+}
+
+// Git 체크아웃 커스텀 함수
+def gitCheckout(Map args) {
+    checkout scmGit(
+        branches: [[name: "*/${args.branch}"]],
+        extensions: args.sparseCheckout ? [[$class: 'SparseCheckoutPaths', sparseCheckoutPaths: [[path: args.sparseCheckout]]]] : [],
+        userRemoteConfigs: [[url: args.repoUrl, credentialsId: args.credentialsId]]
+    )
 }
