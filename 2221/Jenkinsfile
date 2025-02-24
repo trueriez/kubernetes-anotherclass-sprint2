@@ -36,6 +36,20 @@ pipeline {
             }
         }
 
+        stage('컨테이너 빌드 & GHCR 업로드') {
+            steps {
+                withCredentials([usernamePassword(credentialsId: GHCR_CRED_ID, 
+                                                 usernameVariable: 'GIT_USER', 
+                                                 passwordVariable: 'GIT_PAT')]) {
+                    sh 'echo "$GIT_PAT" | docker login ghcr.io -u "$GIT_USER" --password-stdin'
+                    sh "cp ./build/libs/app-${APP_VERSION}.jar ./${CLASS_NUM}/build/docker/app-${APP_VERSION}.jar"
+                    sh "docker build -t ${GHCR_REPO}:${IMAGE_TAG} ./"
+                    sh "docker push ${GHCR_REPO}:${IMAGE_TAG}"
+                }
+            }
+        }
+
+        
         stage('릴리즈파일 체크아웃') {
             steps {
                 gitCheckout(
@@ -47,19 +61,7 @@ pipeline {
             }
         }
 
-        stage('컨테이너 빌드 & GHCR 업로드') {
-            steps {
-                withCredentials([usernamePassword(credentialsId: GHCR_CRED_ID, 
-                                                 usernameVariable: 'GIT_USER', 
-                                                 passwordVariable: 'GIT_PAT')]) {
-                    sh 'echo "$GIT_PAT" | docker login ghcr.io -u "$GIT_USER" --password-stdin'
-                    sh "cp ./build/libs/app-${APP_VERSION}.jar ./${CLASS_NUM}/build/docker/app-${APP_VERSION}.jar"
-                    sh "docker build -t ${GHCR_REPO}:${IMAGE_TAG} ./${CLASS_NUM}/build/docker"
-                    sh "docker push ${GHCR_REPO}:${IMAGE_TAG}"
-                }
-            }
-        }
-
+        
         stage('헬름 템플릿 확인') {
             steps {
                 sh """
