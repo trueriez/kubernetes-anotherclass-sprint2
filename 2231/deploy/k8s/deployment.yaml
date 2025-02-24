@@ -33,7 +33,7 @@ spec:
         - name: ghcr-secret
       containers:
         - name: api-tester-2231
-          image: ghcr.io/trueriez/api-tester:1.0.0
+          image: ghcr.io/trueriez/api-tester:v1.0.0
           imagePullPolicy: Always
         
           ports:
