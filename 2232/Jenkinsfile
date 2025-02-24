@@ -17,7 +17,7 @@ pipeline {
         // 본인의 username으로 하실 분은 수정해주세요.
         DOCKERHUB_USERNAME = 'trueriez'
         GITHUB_URL = 'https://github.com/trueriez/kubernetes-anotherclass-sprint2.git'
-        GHCR_REPO = 'ghcr.io/trueriez/api-tester'
+        GHCR_REPO = 'ghcr.io/trueriez'
 
         APP_VERSION = '1.1.1'
         BUILD_DATE = sh(script: "echo `date +%y%m%d.%d%H%M`", returnStdout: true).trim()
@@ -86,7 +86,7 @@ pipeline {
                 script {
                     withCredentials([usernamePassword(credentialsId: 'github-container-credentials', usernameVariable: 'GIT_USER', passwordVariable: 'GIT_PAT')]) {
               	        // 도커 빌드
-			            echo "docker push ${GHCR_REPO}:${TAG}"
+			            echo "docker push ${GHCR_REPO}/api-tester:${TAG}"
                     }
                 }
             }
