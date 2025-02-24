@@ -86,12 +86,25 @@ pipeline {
             }
         }
 
-        stage('커스터마이즈 템플릿 확인') {
-            steps {
-                // K8S 배포
-                sh "kubectl kustomize ./${CLASS_NUM}/deploy/kustomize/api-tester/overlays/${params.PROFILE}"
-            }
-        }
+        // stage('커스터마이즈 템플릿 확인') {
+        //     steps {
+        //         // K8S 배포
+        //         sh "kubectl kustomize ./${CLASS_NUM}/deploy/kustomize/api-tester/overlays/${params.PROFILE}"
+        //     }
+        // }
+
+    	stage('커스터마이즈 템플릿 확인') {
+	    steps {
+	        script {
+	            def overlayPath = "./${CLASS_NUM}/deploy/kustomize/api-tester/overlays/${params.PROFILE}"
+	            if (fileExists(overlayPath)) {
+	                sh "kubectl kustomize ${overlayPath}"
+	            } else {
+	                error "Directory ${overlayPath} does not exist! Check your repository and checkout settings."
+	            }
+	        }
+	    }
+	}
 
         stage('커스터마이즈 배포') {
             steps {
