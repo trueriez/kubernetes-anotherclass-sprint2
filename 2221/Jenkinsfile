@@ -61,6 +61,11 @@ pipeline {
                             echo "$GIT_PAT" | docker login ghcr.io -u "$GIT_USER" --password-stdin
 
                             mkdir -p ./${CLASS_NUM}/build/docker
+                            if [ ! -f ./${CLASS_NUM}/build/docker/Dockerfile ]; then
+				                 echo "🚨 Dockerfile이 없습니다. 추가 복사 수행..."
+				                 cp ./docker/Dockerfile ./${CLASS_NUM}/build/docker/Dockerfile
+				            fi
+                        
                             cp ./build/libs/app-0.0.1-SNAPSHOT.jar ./${CLASS_NUM}/build/docker/app-0.0.1-SNAPSHOT.jar
                             
                             docker build -t ${GHCR_REPO}:v1.0.0 ./${CLASS_NUM}/build/docker
