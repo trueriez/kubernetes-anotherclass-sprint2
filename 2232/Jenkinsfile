@@ -64,10 +64,16 @@ pipeline {
 
                 script{
 
-                    // 도커 로그인
-                     withCredentials([usernamePassword(credentialsId: 'github-container-credentials', usernameVariable: 'GIT_USER', passwordVariable: 'GIT_PAT')]) {
-                        sh "echo " + '${GIT_PAT}' + " | docker login ghcr.io -u " + '${GIT_USER}' + " --password-stdin"
-                     }
+                    withCredentials([usernamePassword(credentialsId: 'github-container-credentials', usernameVariable: 'GIT_USER', passwordVariable: 'GIT_PAT')]) {
+                        sh '''
+                            echo "📌 현재 작업 디렉토리 (pwd):"
+                            pwd  # 현재 위치 출력
+
+                            echo "$GIT_PAT" | docker login ghcr.io -u "$GIT_USER" --password-stdin
+
+                        '''
+                    }
+                    
                     sh "mkdir -p ./${CLASS_NUM}/build/docker"
                     // 도커 빌드 및 업로드
                     sh "docker build ./${CLASS_NUM}/build/docker -t ${DOCKERHUB_USERNAME}/api-tester:${TAG}"
