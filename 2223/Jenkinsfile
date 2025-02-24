@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     tools {
-        gradle 'gradle-7.6.1'
+        gradle 'gradle-8.10'
         jdk 'jdk-17'
     }
 
@@ -12,8 +12,9 @@ pipeline {
 
     environment {
         // 본인의 username으로 하실 분은 수정해주세요.
-        DOCKERHUB_USERNAME = '1pro'
-        GITHUB_URL = 'https://github.com/k8s-1pro/kubernetes-anotherclass-sprint2.git'
+        DOCKERHUB_USERNAME = 'trueriez'
+        GITHUB_URL = 'https://github.com/trueriez/kubernetes-anotherclass-sprint2.git'
+        GHCR_REPO = 'ghcr.io/trueriez/api-tester'
 
         // 실습 넘버링
         CLASS_NUM = '2223'
@@ -23,7 +24,14 @@ pipeline {
         stage('소스파일 체크아웃') {
             steps {
                 // 소스코드를 가져올 Github 주소
-                git branch: 'main', url: 'https://github.com/k8s-1pro/kubernetes-anotherclass-api-tester.git'
+                script {
+                    withCredentials([usernamePassword(credentialsId: 'github-credentials', usernameVariable: 'GIT_USER', passwordVariable: 'GIT_PASS')]) {
+                        checkout scmGit(
+                            branches: [[name: '*/main']],
+                            userRemoteConfigs: [[url: "https://${GIT_USER}:${GIT_PASS}@github.com/trueriez/kubernetes-anotherclass-api-tester.git"]]
+                        )
+                    }
+                }
             }
         }
 
@@ -37,10 +45,16 @@ pipeline {
 
         stage('릴리즈파일 체크아웃') {
             steps {
-                checkout scmGit(branches: [[name: '*/main']],
-                        extensions: [[$class: 'SparseCheckoutPaths',
+                script {
+                    withCredentials([usernamePassword(credentialsId: 'github-credentials', usernameVariable: 'GIT_USER', passwordVariable: 'GIT_PASS')]) {
+                        checkout scmGit(
+                            branches: [[name: '*/main']],
+                             extensions: [[$class: 'SparseCheckoutPaths',
                                       sparseCheckoutPaths: [[path: "/${CLASS_NUM}"]]]],
-                        userRemoteConfigs: [[url: "${GITHUB_URL}"]])
+                            userRemoteConfigs: [[url: "https://${GIT_USER}:${GIT_PASS}@github.com/trueriez/kubernetes-anotherclass-sprint2.git"]]
+                        )
+                    }
+                }
             }
         }
 
@@ -49,15 +63,24 @@ pipeline {
                 // jar 파일 복사
                 echo "cp ./build/libs/app-0.0.1-SNAPSHOT.jar ./${CLASS_NUM}/build/docker/app-0.0.1-SNAPSHOT.jar"
 
-                // 도커 빌드
-                echo "docker build -t ${DOCKERHUB_USERNAME}/api-tester:v1.0.0 ./${CLASS_NUM}/build/docker"
+                script {
+                    withCredentials([usernamePassword(credentialsId: 'github-container-credentials', usernameVariable: 'GIT_USER', passwordVariable: 'GIT_PAT')]) {
+              	        // 도커 빌드
+			            echo "docker build -t ${GHCR_REPO}/api-tester:v1.0.0 ./${CLASS_NUM}/build/docker"
+                    }
+                }
             }
         }
 
         stage('컨테이너 업로드') {
             steps {
                 // DockerHub로 이미지 업로드
-                echo "docker push ${DOCKERHUB_USERNAME}/api-tester:v1.0.0"
+                script {
+                    withCredentials([usernamePassword(credentialsId: 'github-container-credentials', usernameVariable: 'GIT_USER', passwordVariable: 'GIT_PAT')]) {
+              	        // 도커 빌드
+			            echo "docker push ${GHCR_REPO}:v1.0.0"
+                    }
+                }
             }
         }
 
