@@ -15,28 +15,54 @@ pipeline {
         CLASS_NUM = '2221'
     }
 
-    stages {
-        stage('소스파일 체크아웃') {
-            steps {
-                script {
-                    withCredentials([usernamePassword(credentialsId: 'github-credentials', usernameVariable: 'GIT_USER', passwordVariable: 'GIT_PASS')]) {
-                        checkout scmGit(
-                            branches: [[name: '*/main']],
-                            userRemoteConfigs: [[url: "https://${GIT_USER}:${GIT_PASS}@github.com/trueriez/kubernetes-anotherclass-api-tester.git"]]
-                        )
-                    }
-                }
-            }
-        }
+	stages {
+	        stage('소스 체크아웃 및 컨테이너 빌드 & GHCR 업로드') {
+	            steps {
+	                script {
+	                    withCredentials([usernamePassword(credentialsId: 'github-credentials', usernameVariable: 'GIT_USER', passwordVariable: 'GIT_PASS')]) {
+	                        checkout scmGit(
+	                            branches: [[name: '*/main']],
+	                            userRemoteConfigs: [[url: "https://${GIT_USER}:${GIT_PASS}@github.com/trueriez/kubernetes-anotherclass-api-tester.git"]]
+	                        )
+	                    }
+	                }
+	
+	                sh '''
+	                    echo "🚀 [1] 소스 빌드 시작"
+	                    chmod +x ./gradlew
+	                    ./gradlew clean build
+	
+	                    echo "📌 현재 작업 디렉토리:"
+	                    pwd  # 현재 위치 확인
+	
+	                    mkdir -p ./${CLASS_NUM}/build/docker
+	
+	                    echo "🚀 [2] Dockerfile 확인 및 복사"
+	                    if [ ! -f ./${CLASS_NUM}/build/docker/Dockerfile ]; then
+	                        echo "🚨 Dockerfile이 없습니다. 복사 수행..."
+	                        cp ./Dockerfile ./${CLASS_NUM}/build/docker/Dockerfile || cp ./docker/Dockerfile ./${CLASS_NUM}/build/docker/Dockerfile
+	                    fi
+	
+	                    ls -l ./${CLASS_NUM}/build/docker/  # 파일 확인
+	
+	                    echo "🚀 [3] 빌드된 JAR 파일 이동"
+	                    cp ./build/libs/app-0.0.1-SNAPSHOT.jar ./${CLASS_NUM}/build/docker/app-0.0.1-SNAPSHOT.jar
+	                '''
+	                
+	                withCredentials([usernamePassword(credentialsId: 'github-container-credentials', usernameVariable: 'GIT_USER', passwordVariable: 'GIT_PAT')]) {
+	                    sh '''
+	                        echo "🚀 [4] GHCR 로그인"
+	                        echo "$GIT_PAT" | docker login ghcr.io -u "$GIT_USER" --password-stdin
+	
+	                        echo "🚀 [5] 도커 이미지 빌드 및 업로드"
+	                        docker build -t ${GHCR_REPO}:v1.0.0 ./${CLASS_NUM}/build/docker
+	                        docker push ${GHCR_REPO}:v1.0.0
+	                    '''
+	                }
+	            }
+	        }
+	    }
 
-        stage('소스 빌드') {
-            steps {
-                sh '''
-                    chmod +x ./gradlew
-                    ./gradlew clean build
-                '''
-            }
-        }
 
         stage('릴리즈파일 체크아웃') {
             steps {
