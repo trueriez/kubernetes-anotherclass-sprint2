@@ -10,9 +10,6 @@ image:
   # Overrides the image tag whose default is the chart appVersion.
   tag: ""
 
-imagePullSecrets:
-  - name: ghcr-secret  # GitHub Container Registry 인증을 위한 Secret 추가
-
 nameOverride: ""
 fullnameOverride: ""
 
