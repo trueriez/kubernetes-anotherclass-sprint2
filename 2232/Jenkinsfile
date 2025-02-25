@@ -65,16 +65,21 @@ pipeline {
                 script{
 
                     // 도커 로그인
-                    withCredentials([usernamePassword(credentialsId: 'github-container-credentials', passwordVariable: 'PASSWORD', usernameVariable: 'USERNAME')]) {
-                        sh "echo " + '${PASSWORD}' + " | docker login ghcr.io -u " + '${USERNAME}' + " --password-stdin"
+                    withCredentials([usernamePassword(credentialsId: 'docker_password', passwordVariable: 'PASSWORD', usernameVariable: 'USERNAME')]) {
+                        sh "echo " + '${PASSWORD}' + " | docker login -u " + '${USERNAME}' + " --password-stdin"
                     }
 
                     // 도커 빌드 및 업로드
-                        sh "docker build ./${CLASS_NUM}/build/docker -t ghcr.io/trueriez/api-tester:${TAG}"
-                        sh "docker push ghcr.io/trueriez/api-tester:${TAG}"
+                    if (DOCKERHUB_USERNAME == "1pro") {
+                        TAG = "1.0.1-231220.175735"  // 1pro useranme 수강생을 위한 고정 태그명
+                        sh "docker build ./${CLASS_NUM}/build/docker -t ${DOCKERHUB_USERNAME}/api-tester:${TAG}"
+                    } else {
+                        sh "docker build ./${CLASS_NUM}/build/docker -t ${DOCKERHUB_USERNAME}/api-tester:${TAG}"
+                        sh "docker push ${DOCKERHUB_USERNAME}/api-tester:${TAG}"
+                    }
 
                     // 도커 이미지 삭제
-                    sh "docker rmi ghcr.io/trueriez/api-tester:${TAG}"
+                    sh "docker rmi ${DOCKERHUB_USERNAME}/api-tester:${TAG}"
                 }
             }
 
